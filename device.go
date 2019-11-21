@@ -24,22 +24,125 @@ func (device Device) ProcessData(data string) {
 			continue
 		}
 		LogInfo(device.Name, "Open Order: "+strconv.Itoa(orderId)+" with terminal_input_order "+strconv.Itoa(openTerminalInputOrderId))
-		LogInfo(device.Name, strconv.Itoa(productId)+"..."+strconv.Itoa(openOrderProductId))
+		LogInfo(device.Name, "Data product Id: "+strconv.Itoa(productId)+", open order product id: "+strconv.Itoa(openOrderProductId))
+		LogInfo(device.Name, "FailId: "+strconv.Itoa(failId)+", fail datetime: "+failDateTime.String())
+		if orderId == 100 {
+			LogInfo(device.Name, "Internal order opened, updating")
+			orderIdToInsert := GetOrderIdForProductId(device, productId)
+			device.UpdateTerminalInputOrder(openTerminalInputOrderId, orderIdToInsert)
+			CreateFail(failId, failDateTime, device)
+			continue
+		}
 		if openTerminalInputOrderId > 0 {
+			LogInfo(device.Name, "PPA order opened")
 			if productId == openOrderProductId {
-				LogInfo(device.Name, "Adding new fail to database: ["+strconv.Itoa(failId)+"] "+failName+"    ["+strconv.Itoa(productId)+"] "+productName+"    "+failDateTime.String()+"--"+parsedLine[2])
+				LogInfo(device.Name, "Product match")
+				CreateFail(failId, failDateTime, device)
+				continue
 			} else {
-				LogInfo(device.Name, "Closing old terminal_input_order")
-				LogInfo(device.Name, "Creating new terminal_input_order")
-				openTerminalInputOrderId, orderId = CheckOpenTerminalInputOrder(device)
-				LogInfo(device.Name, "Adding new fail to database: ["+strconv.Itoa(failId)+"] "+failName+"    ["+strconv.Itoa(productId)+"] "+productName+"    "+failDateTime.String()+"--"+parsedLine[2])
+				LogInfo(device.Name, "Product did not match")
+				orderIdToInsert := GetOrderIdForProductId(device, productId)
+				OpenNewTerminalInputOrder(device, orderIdToInsert, failDateTime)
+				CloseOpenTerminalInputOrder(device, openTerminalInputOrderId, failDateTime)
+				CreateFail(failId, failDateTime, device)
+				continue
 			}
 		} else {
-			LogInfo(device.Name, "Creating new terminal_input_order")
-			openTerminalInputOrderId, orderId = CheckOpenTerminalInputOrder(device)
-			LogInfo(device.Name, "Adding new fail to database: ["+strconv.Itoa(failId)+"] "+failName+"    ["+strconv.Itoa(productId)+"] "+productName+"    "+failDateTime.String()+"--"+parsedLine[2])
+			LogInfo(device.Name, "No order opened, creating")
+			orderIdToInsert := GetOrderIdForProductId(device, productId)
+			OpenNewTerminalInputOrder(device, orderIdToInsert, failDateTime)
+			CreateFail(failId, failDateTime, device)
 		}
 	}
+}
+
+func CreateFail(failId int, failDateTime time.Time, device Device) {
+	var terminalInputFail TerminalInputFail
+	connectionString, dialect := CheckDatabaseType()
+	db, err := gorm.Open(dialect, connectionString)
+	if err != nil {
+		LogError(device.Name, "Problem opening "+DatabaseName+" database: "+err.Error())
+		return
+	}
+	defer db.Close()
+	terminalInputFail.FailID = failId
+	terminalInputFail.DeviceID = device.OID
+	terminalInputFail.UserID = 1
+	terminalInputFail.DT = failDateTime
+	db.NewRecord(terminalInputFail)
+	db.Create(&terminalInputFail)
+	openTerminalInputOrderId, _ := CheckOpenTerminalInputOrder(device)
+	latestTerminalInputFailId := GetLatestTerminalInputFailId(device, failId, failDateTime)
+	var terminalInputOrderFail TerminalInputOrderTerminalInputFail
+	terminalInputOrderFail.TerminalInputOrderID = openTerminalInputOrderId
+	terminalInputOrderFail.TerminalInputFailID = latestTerminalInputFailId
+	db.Create(&terminalInputOrderFail)
+}
+
+func GetLatestTerminalInputFailId(device Device, failId int, failDateTime time.Time) int {
+	var terminalInputFail TerminalInputFail
+	connectionString, dialect := CheckDatabaseType()
+	db, err := gorm.Open(dialect, connectionString)
+
+	if err != nil {
+		LogError(device.Name, "Problem opening "+DatabaseName+" database: "+err.Error())
+		return 0
+	}
+	defer db.Close()
+	db.Where("DeviceID = ?", device.OID).Where("FailID = ?", failId).Where("DT = ?", failDateTime).Find(&terminalInputFail)
+	return terminalInputFail.OID
+}
+
+func CloseOpenTerminalInputOrder(device Device, openTerminalInputOrderId int, failDateTime time.Time) {
+	var terminalInputOrder TerminalInputOrder
+	connectionString, dialect := CheckDatabaseType()
+	db, err := gorm.Open(dialect, connectionString)
+
+	if err != nil {
+		LogError(device.Name, "Problem opening "+DatabaseName+" database: "+err.Error())
+		return
+	}
+	defer db.Close()
+	db.Model(&terminalInputOrder).Where("OID = ?", openTerminalInputOrderId).Update("DTE", failDateTime)
+}
+
+func OpenNewTerminalInputOrder(device Device, orderIdToInsert int, failDateTime time.Time) {
+	var terminalInputOrder TerminalInputOrder
+	terminalInputOrder.OrderID = orderIdToInsert
+	terminalInputOrder.DeviceID = device.OID
+	terminalInputOrder.DTS = failDateTime
+	terminalInputOrder.UserID = 1
+	connectionString, dialect := CheckDatabaseType()
+	db, err := gorm.Open(dialect, connectionString)
+	if err != nil {
+		LogError("MAIN", "Problem opening "+DatabaseName+" database: "+err.Error())
+		return
+	}
+	defer db.Close()
+	db.Create(&terminalInputOrder)
+}
+
+func GetOrderIdForProductId(device Device, productId int) int {
+	var order Order
+	connectionString, dialect := CheckDatabaseType()
+	db, err := gorm.Open(dialect, connectionString)
+
+	if err != nil {
+		LogError("MAIN", "Problem opening "+DatabaseName+" database: "+err.Error())
+		return 0
+	}
+	defer db.Close()
+	db.Where("ProductId = ?", productId).Find(&order)
+	if order.OID > 0 {
+		return order.OID
+	}
+	var newOrder Order
+	newOrder.Name = device.Name + strconv.Itoa(productId)
+	newOrder.ProductID = productId
+	db.Save(&newOrder)
+	var brandNewOrder Order
+	db.Where("ProductId = ?", productId).Find(&brandNewOrder)
+	return brandNewOrder.OID
 }
 
 func CheckProductForOpenOrder(orderId int) int {

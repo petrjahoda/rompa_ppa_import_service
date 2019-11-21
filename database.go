@@ -30,22 +30,24 @@ func (Device) TableName() string {
 	return "device"
 }
 
-type Workplace struct {
-	OID              int    `gorm:"column:OID"`
-	Name             string `gorm:"column:Name"`
-	WorkplaceGroupID int    `gorm:"column:WorkplaceGroupID"`
-	DeviceID         int    `gorm:"column:DeviceID"`
-	Code             string `gorm:"column:Code"`
-}
+func (device Device) UpdateTerminalInputOrder(openTerminalInputOrderId int, orderIdToInsert int) {
+	var terminalInputOrder TerminalInputOrder
+	connectionString, dialect := CheckDatabaseType()
+	db, err := gorm.Open(dialect, connectionString)
 
-func (Workplace) TableName() string {
-	return "workplace"
+	if err != nil {
+		LogError(device.Name, "Problem opening "+DatabaseName+" database: "+err.Error())
+		return
+	}
+	defer db.Close()
+	db.Model(&terminalInputOrder).Where("OID = ?", openTerminalInputOrderId).Update("OrderID", orderIdToInsert)
 }
 
 type TerminalInputOrder struct {
 	OID      int       `gorm:"column:OID"`
 	DTS      time.Time `gorm:"column:DTS"`
-	DTE      time.Time `gorm:"column:DTE"`
+	DTE      time.Time `gorm:"column:DTE; default:null"`
+	Interval float32   `gorm:"column:Interval"`
 	OrderID  int       `gorm:"column:OrderID"`
 	UserID   int       `gorm:"column:UserID"`
 	DeviceID int       `gorm:"column:DeviceID"`
@@ -62,29 +64,6 @@ type TerminalInputOrderTerminalInputFail struct {
 
 func (TerminalInputOrderTerminalInputFail) TableName() string {
 	return "terminal_input_order_terminal_input_fail"
-}
-
-type TerminalInputPackage struct {
-	OID                  int       `gorm:"column:OID"`
-	DT                   time.Time `gorm:"column:DT"`
-	PackageID            int       `gorm:"column:PackageID"`
-	TerminalInputOrderID int       `gorm:"column:TerminalInputOrderID"`
-	Count                int       `gorm:"column:Count"`
-}
-
-func (TerminalInputPackage) TableName() string {
-	return "terminal_input_package"
-}
-
-type WorkplacePort struct {
-	OID          int    `gorm:"column:OID"`
-	DevicePortID int    `gorm:"column:DevicePortID"`
-	WorkplaceID  int    `gorm:"column:WorkplaceID"`
-	Type         string `gorm:"column:Type"`
-}
-
-func (WorkplacePort) TableName() string {
-	return "workplace_port"
 }
 
 type User struct {
@@ -110,7 +89,7 @@ type Product struct {
 	OID             int    `gorm:"column:OID"`
 	Name            string `gorm:"column:Name"`
 	Barcode         string `gorm:"column:Barcode"`
-	ProductStatusID int `gorm:"column:ProductStatusID"`
+	ProductStatusID int    `gorm:"column:ProductStatusID"`
 }
 
 func (Product) TableName() string {
@@ -132,25 +111,12 @@ type TerminalInputFail struct {
 	OID      int       `gorm:"column:OID"`
 	DT       time.Time `gorm:"column:DT"`
 	FailID   int       `gorm:"column:FailID"`
-	UserID   int       `gorm:"column:UserID"`
+	UserID   int       `gorm:"column:UserID; default:null"`
 	DeviceID int       `gorm:"column:DeviceID"`
-	Count    int       `gorm:"column:Count"`
 }
 
 func (TerminalInputFail) TableName() string {
 	return "terminal_input_fail"
-}
-
-type RompaWorkplaceData struct {
-	OID                       int       `gorm:"column:OID"`
-	WorkplaceID               string    `gorm:"column:WorkplaceID"`
-	LatestTerminalFailID      int       `gorm:"column:LatestTerminalFailID"`
-	LatestMachineFailDateTime time.Time `gorm:"column:LatestMachineFailDateTime"`
-	LatestPackageID           int       `gorm:"column:LatestPackageID"`
-}
-
-func (RompaWorkplaceData) TableName() string {
-	return "rompa_workplace_data"
 }
 
 func CheckDatabase() bool {
