@@ -84,7 +84,7 @@ func RunDevice(device Device) {
 		}
 		start := time.Now()
 		data := device.DownloadDataFromFile()
-		if len(data) > 1 {
+		if len(data) > 0 {
 			device.ProcessData(data)
 			device.DeleteData()
 		}
