@@ -14,7 +14,7 @@ var (
 	workplaceSync  sync.Mutex
 )
 
-const version = "2019.4.3.27"
+const version = "2020.4.1.26"
 const deleteLogsAfter = 240 * time.Hour
 const downloadInSeconds = 10
 
@@ -61,13 +61,12 @@ func CheckWorkplace(device Device) bool {
 func UpdateActiveDevices(reference string) {
 	connectionString, dialect := CheckDatabaseType()
 	db, err := gorm.Open(dialect, connectionString)
-
+	defer db.Close()
 	if err != nil {
 		LogError(reference, "Problem opening "+DatabaseName+" database: "+err.Error())
 		activeDevices = nil
 		return
 	}
-	defer db.Close()
 	db.Where("DeviceType = ?", 100).Where("CustomerID = ?", 1000).Find(&activeDevices)
 }
 

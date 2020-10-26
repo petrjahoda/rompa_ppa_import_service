@@ -34,12 +34,11 @@ func (device Device) UpdateTerminalInputOrder(openTerminalInputOrderId int, orde
 	var terminalInputOrder TerminalInputOrder
 	connectionString, dialect := CheckDatabaseType()
 	db, err := gorm.Open(dialect, connectionString)
-
+	defer db.Close()
 	if err != nil {
 		LogError(device.Name, "Problem opening "+DatabaseName+" database: "+err.Error())
 		return
 	}
-	defer db.Close()
 	db.Model(&terminalInputOrder).Where("OID = ?", openTerminalInputOrderId).Update("OrderID", orderIdToInsert)
 }
 
@@ -130,11 +129,11 @@ func CheckDatabase() bool {
 		dialect = "mysql"
 	}
 	db, err := gorm.Open(dialect, connectionString)
+	defer db.Close()
 	if err != nil {
 		LogWarning("MAIN", "Database zapsi2 does not exist")
 		return false
 	}
-	defer db.Close()
 	LogDebug("MAIN", "Database zapsi2 exists")
 	return true
 }

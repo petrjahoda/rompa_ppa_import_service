@@ -60,11 +60,11 @@ func CreateFail(failId int, failDateTime time.Time, device Device) {
 	var terminalInputFail TerminalInputFail
 	connectionString, dialect := CheckDatabaseType()
 	db, err := gorm.Open(dialect, connectionString)
+	defer db.Close()
 	if err != nil {
 		LogError(device.Name, "Problem opening "+DatabaseName+" database: "+err.Error())
 		return
 	}
-	defer db.Close()
 	terminalInputFail.FailID = failId
 	terminalInputFail.DeviceID = device.OID
 	terminalInputFail.UserID = 1
@@ -83,12 +83,11 @@ func GetLatestTerminalInputFailId(device Device, failId int, failDateTime time.T
 	var terminalInputFail TerminalInputFail
 	connectionString, dialect := CheckDatabaseType()
 	db, err := gorm.Open(dialect, connectionString)
-
+	defer db.Close()
 	if err != nil {
 		LogError(device.Name, "Problem opening "+DatabaseName+" database: "+err.Error())
 		return 0
 	}
-	defer db.Close()
 	db.Where("DeviceID = ?", device.OID).Where("FailID = ?", failId).Where("DT = ?", failDateTime).Find(&terminalInputFail)
 	return terminalInputFail.OID
 }
@@ -97,12 +96,11 @@ func CloseOpenTerminalInputOrder(device Device, openTerminalInputOrderId int, fa
 	var terminalInputOrder TerminalInputOrder
 	connectionString, dialect := CheckDatabaseType()
 	db, err := gorm.Open(dialect, connectionString)
-
+	defer db.Close()
 	if err != nil {
 		LogError(device.Name, "Problem opening "+DatabaseName+" database: "+err.Error())
 		return
 	}
-	defer db.Close()
 	db.Model(&terminalInputOrder).Where("OID = ?", openTerminalInputOrderId).Update("DTE", failDateTime)
 }
 
@@ -114,11 +112,11 @@ func OpenNewTerminalInputOrder(device Device, orderIdToInsert int, failDateTime 
 	terminalInputOrder.UserID = 1
 	connectionString, dialect := CheckDatabaseType()
 	db, err := gorm.Open(dialect, connectionString)
+	defer db.Close()
 	if err != nil {
 		LogError("MAIN", "Problem opening "+DatabaseName+" database: "+err.Error())
 		return
 	}
-	defer db.Close()
 	db.Create(&terminalInputOrder)
 }
 
@@ -126,12 +124,11 @@ func GetOrderIdForProductId(device Device, productId int) int {
 	var order Order
 	connectionString, dialect := CheckDatabaseType()
 	db, err := gorm.Open(dialect, connectionString)
-
+	defer db.Close()
 	if err != nil {
 		LogError("MAIN", "Problem opening "+DatabaseName+" database: "+err.Error())
 		return 0
 	}
-	defer db.Close()
 	db.Where("ProductId = ?", productId).Find(&order)
 	if order.OID > 0 {
 		return order.OID
@@ -149,12 +146,11 @@ func CheckProductForOpenOrder(orderId int) int {
 	var order Order
 	connectionString, dialect := CheckDatabaseType()
 	db, err := gorm.Open(dialect, connectionString)
-
+	defer db.Close()
 	if err != nil {
 		LogError("MAIN", "Problem opening "+DatabaseName+" database: "+err.Error())
 		return 0
 	}
-	defer db.Close()
 	db.Where("OID = ?", orderId).Find(&order)
 	return order.ProductID
 }
@@ -163,12 +159,11 @@ func CheckOpenTerminalInputOrder(device Device) (terminalInputOrderId int, order
 	var openOrder TerminalInputOrder
 	connectionString, dialect := CheckDatabaseType()
 	db, err := gorm.Open(dialect, connectionString)
-
+	defer db.Close()
 	if err != nil {
 		LogError("MAIN", "Problem opening "+DatabaseName+" database: "+err.Error())
 		return 0, 0
 	}
-	defer db.Close()
 	db.Where("DeviceID = ?", device.OID).Where("DTE is null").Find(&openOrder)
 	return openOrder.OID, openOrder.OrderID
 
@@ -178,12 +173,11 @@ func CheckProductInDatabase(device Device, productName string) int {
 	var product Product
 	connectionString, dialect := CheckDatabaseType()
 	db, err := gorm.Open(dialect, connectionString)
-
+	defer db.Close()
 	if err != nil {
 		LogError("MAIN", "Problem opening "+DatabaseName+" database: "+err.Error())
 		return 0
 	}
-	defer db.Close()
 	db.Where("Name = ?", productName).Find(&product)
 	if product.OID > 0 {
 		LogInfo(device.Name, "Product ["+productName+"] exists")
@@ -203,12 +197,11 @@ func CheckFailInDatabase(device Device, failName string) int {
 	var fail Fail
 	connectionString, dialect := CheckDatabaseType()
 	db, err := gorm.Open(dialect, connectionString)
-
+	defer db.Close()
 	if err != nil {
 		LogError("MAIN", "Problem opening "+DatabaseName+" database: "+err.Error())
 		return 0
 	}
-	defer db.Close()
 	db.Where("Name = ?", failName).Find(&fail)
 	if fail.OID > 0 {
 		LogInfo(device.Name, "Fail ["+failName+"] exists")
